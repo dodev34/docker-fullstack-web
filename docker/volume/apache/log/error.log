@@ -1,3 +1,4 @@
-AH00558: apache2: Could not reliably determine the server's fully qualified domain name, using 172.24.0.2. Set the 'ServerName' directive globally to suppress this message
-[Sun Mar 24 21:27:31.055417 2019] [mpm_prefork:notice] [pid 1] AH00163: Apache/2.4.25 (Debian) PHP/7.2.16 configured -- resuming normal operations
-[Sun Mar 24 21:27:31.057041 2019] [core:notice] [pid 1] AH00094: Command line: 'apache2 -D FOREGROUND'
+AH00558: apache2: Could not reliably determine the server's fully qualified domain name, using 172.24.0.6. Set the 'ServerName' directive globally to suppress this message
+[Sun Mar 24 23:18:41.524097 2019] [mpm_prefork:notice] [pid 1] AH00163: Apache/2.4.25 (Debian) PHP/5.6.40 configured -- resuming normal operations
+[Sun Mar 24 23:18:41.532861 2019] [core:notice] [pid 1] AH00094: Command line: 'apache2 -D FOREGROUND'
+[Sun Mar 24 23:20:36.612067 2019] [mpm_prefork:notice] [pid 1] AH00169: caught SIGTERM, shutting down
