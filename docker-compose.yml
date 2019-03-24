@@ -16,6 +16,7 @@ services:
       - "80:80"
     volumes:
       - ${PROJECT_PATH}/public:/var/www/html
+      - ${PROJECT_PATH}/docker/volume/apache/log:/var/log/apache2
       - ${PROJECT_PATH}/docker/config/apache/php.ini:/usr/local/etc/php/conf.d/z001.ini
     links:
       - mysql:mysql
