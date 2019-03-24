@@ -1,122 +1,143 @@
 vcl 4.0;
 
 # Default backend definition. Set this to point to your content server.
-#backend default {
-#    .host = "apache";
-#    .port = "80";
-#}
+backend default {
+    .host = "apache";
+    .port = "80";
+}
 
-#
-# Below is a commented-out copy of the default VCL logic.  If you
-# redefine any of these subroutines, the built-in logic will be
-# appended to your code.
- sub vcl_recv {
-#     if (req.restarts == 0) {
-# 	if (req.http.x-forwarded-for) {
-# 	    set req.http.X-Forwarded-For =
-# 		req.http.X-Forwarded-For + ", " + client.ip;
-# 	} else {
-# 	    set req.http.X-Forwarded-For = client.ip;
-# 	}
-#     }
-#     if (req.request != "GET" &&
-#       req.request != "HEAD" &&
-#       req.request != "PUT" &&
-#       req.request != "POST" &&
-#       req.request != "TRACE" &&
-#       req.request != "OPTIONS" &&
-#       req.request != "DELETE") {
-#         /* Non-RFC2616 or CONNECT which is weird. */
-#         return (pipe);
-#     }
-#     if (req.request != "GET" && req.request != "HEAD") {
-#         /* We only deal with GET and HEAD by default */
-#         return (pass);
-#     }
-#     if (req.http.Authorization || req.http.Cookie) {
-#         /* Not cacheable by default */
-#         return (pass);
-#     }
-#     return (lookup);
-# }
-#
-# sub vcl_pipe {
-#     # Note that only the first request to the backend will have
-#     # X-Forwarded-For set.  If you use X-Forwarded-For and want to
-#     # have it set for all requests, make sure to have:
-#     # set bereq.http.connection = "close";
-#     # here.  It is not set by default as it might break some broken web
-#     # applications, like IIS with NTLM authentication.
-#     return (pipe);
-# }
-#
-# sub vcl_pass {
-#     return (pass);
-# }
-#
-# sub vcl_hash {
-#     hash_data(req.url);
-#     if (req.http.host) {
-#         hash_data(req.http.host);
-#     } else {
-#         hash_data(server.ip);
-#     }
-#     return (hash);
-# }
-#
-# sub vcl_hit {
-#     return (deliver);
-# }
-#
-# sub vcl_miss {
-#     return (fetch);
-# }
-#
-# sub vcl_fetch {
-#     if (beresp.ttl <= 0s ||
-#         beresp.http.Set-Cookie ||
-#         beresp.http.Vary == "*") {
-# 		/*
-# 		 * Mark as "Hit-For-Pass" for the next 2 minutes
-# 		 */
-# 		set beresp.ttl = 120 s;
-# 		return (hit_for_pass);
-#     }
-#     return (deliver);
-# }
-#
-# sub vcl_deliver {
-#     return (deliver);
-# }
-#
-# sub vcl_error {
-#     set obj.http.Content-Type = "text/html; charset=utf-8";
-#     set obj.http.Retry-After = "5";
-#     synthetic {"
-# <?xml version="1.0" encoding="utf-8"?>
-# <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-#  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-# <html>
-#   <head>
-#     <title>"} + obj.status + " " + obj.response + {"</title>
-#   </head>
-#   <body>
-#     <h1>Error "} + obj.status + " " + obj.response + {"</h1>
-#     <p>"} + obj.response + {"</p>
-#     <h3>Guru Meditation:</h3>
-#     <p>XID: "} + req.xid + {"</p>
-#     <hr>
-#     <p>Varnish cache server</p>
-#   </body>
-# </html>
-# "};
-#     return (deliver);
-# }
-#
-# sub vcl_init {
-# 	return (ok);
-# }
-#
-# sub vcl_fini {
-# 	return (ok);
-# }
+acl purgers {
+    "localhost";
+    "127.0.0.1";
+}
+
+sub vcl_recv {
+
+    # Allow purging
+    if (req.method == "PURGE") {
+      if (!client.ip ~ purgers) {
+        return (synth(405, "This IP is not allowed to send PURGE requests."));
+      }
+      return (purge);
+    }
+
+    # Set proxied ip header to original remote address
+    unset req.http.X-Forwarded-For;
+    set req.http.X-Forwarded-For = client.ip;
+
+    # Remove has_js and Google Analytics cookies
+    set req.http.Cookie = regsuball(req.http.Cookie, "(^|;\s*)(__[a-z]+|__utm*|has_js)=[^;]*", "");
+
+    # Remove a ";" prefix, if present.
+    set req.http.Cookie = regsub(req.http.Cookie, "^;\s*", "");
+
+    # Remove empty cookies.
+    if (req.http.Cookie ~ "^\s*$") {
+            unset req.http.Cookie;
+    }
+
+    # remove double // in urls,
+        set req.url = regsuball( req.url, "//", "/"      );
+
+    # Normalize Accept-Encoding
+    if (req.http.Accept-Encoding) {
+        if (req.url ~ "\.(jpg|png|gif|gz|tgz|bz2|tbz|mp3|ogg)$") {
+            # No point in compressing these
+            unset req.http.Accept-Encoding;
+        } elsif (req.http.Accept-Encoding ~ "gzip") {
+            set req.http.Accept-Encoding = "gzip";
+        } elsif (req.http.Accept-Encoding ~ "deflate") {
+            set req.http.Accept-Encoding = "deflate";
+        } else {
+            # unknown algorithm
+            unset req.http.Accept-Encoding;
+        }
+    }
+
+    # Remove cookies for static files
+    if (req.url ~ "\.(gif|jpg|jpeg|swf|css|js|flv|mp3|mp4|pdf|ico|png|tif|tiff|mp3|htm|html|md5)(\?.*|)$") {
+        unset req.http.cookie;
+        return(hash);
+    }
+
+    # Disable caching for backend parts
+    if ( req.url ~ "^/(admin|login)" ) {
+        return(pass);
+    }
+
+    # Strip cookies for cached content
+    unset req.http.Cookie;
+    return(hash);
+
+}
+
+sub vcl_backend_response {
+
+    # If the backend fails, keep serving out of the cache for 30m
+    set beresp.grace = 30m;
+    set beresp.ttl = 48h;
+
+    # Remove some unwanted headers
+    unset beresp.http.Server;
+    #unset beresp.http.X-Powered-By;
+    set beresp.http.X-Powered-By = "docker-fullstack-web";
+
+    # Respect the Cache-Control=private header from the backend
+    if (beresp.http.Cache-Control ~ "private") {
+        set beresp.http.X-Cacheable = "NO:Cache-Control=private";
+    } elsif (beresp.ttl < 1s) {
+        set beresp.ttl   = 120s;
+        set beresp.grace = 5s;
+        set beresp.http.X-Cacheable = "YES:FORCED";
+    } else {
+        set beresp.http.X-Cacheable = "YES";
+    }
+
+    # Don't cache responses to posted requests or requests with basic auth
+    if ( bereq.method == "POST" || bereq.http.Authorization ) {
+        set beresp.uncacheable = true;
+        set beresp.ttl = 120s;
+        return (deliver);
+    }
+
+    # Cache error pages for a short while
+    if( beresp.status == 404 || beresp.status == 500 || beresp.status == 301 || beresp.status == 302 ){
+        set beresp.ttl = 1m;
+        return(deliver);
+    }
+
+    # Do not cache non-success response
+    if( beresp.status != 200 ){
+        set beresp.uncacheable = true;
+        set beresp.ttl = 120s;
+        return(deliver);
+    }
+
+    # Strip cookies before these filetypes are inserted into the cache
+    if (bereq.url ~ "\.(png|gif|jpg|swf|css|js)(\?.*|)$") {
+        unset beresp.http.set-cookie;
+    }
+
+    return(deliver);
+
+}
+
+sub vcl_deliver {
+
+    # Add debugging headers to cache requests
+    if (obj.hits > 0) {
+        set resp.http.X-Cache = "HIT";
+    }
+    else {
+        set resp.http.X-Cache = "MISS";
+    }
+}
+
+sub vcl_purge {
+    # Only handle actual PURGE requests, all the rest is discarded
+    if (req.method != "PURGE") {
+        # restart request
+        set req.http.X-Purge = "Yes";
+        return(restart);
+    }
+}
