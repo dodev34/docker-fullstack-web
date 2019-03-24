@@ -79,7 +79,8 @@ sub vcl_backend_response {
 
     # Remove some unwanted headers
     unset beresp.http.Server;
-    #unset beresp.http.X-Powered-By;
+
+    # Set some unwanted headers
     set beresp.http.X-Powered-By = "docker-fullstack-web";
 
     # Respect the Cache-Control=private header from the backend
