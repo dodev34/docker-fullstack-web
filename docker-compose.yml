@@ -61,10 +61,10 @@ services:
     links:
       - mysql:mysql
 
-  # Elasticsearch Instance
+  # Elasticsearch
   elasticsearch:
     image: elasticsearch:${ELASTICSEARCH_VERSION}
-    volumes: # Persist ES data in seperate "esdata" volume
+    volumes:
       - ${PROJECT_PATH}/docker/volume/elasticsearch/data:/usr/share/elasticsearch/data
     environment:
       - bootstrap.memory_lock=true
