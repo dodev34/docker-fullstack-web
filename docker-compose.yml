@@ -1,0 +1,69 @@
+version: '2.1'
+
+volumes:
+  data:
+    name: "fullstack-web"
+
+services:
+
+  # PHP 7.2 Apache
+  apache:
+    image: php:${PHP_APACHE_VERSION}
+
+    # todo : unstable
+    #build: ./config/apache/build
+    ports:
+      - "80:80"
+    volumes:
+      - ${PROJECT_PATH}/public:/var/www/html
+      - ${PROJECT_PATH}/docker/config/apache/php.ini:/usr/local/etc/php/conf.d/z001.ini
+    links:
+      - mysql:mysql
+
+  # Mysql server
+  mysql:
+    image: mysql:${MYSQL_VERSION}
+    volumes:
+      - ${PROJECT_PATH}/docker/volume/mysql:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+
+  # PHPMyadmin (for mysql)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    volumes:
+      - ${PROJECT_PATH}/docker/config/phpmyadmin/config.inc.php:/etc/phpmyadmin/config.inc.php
+    ports:
+      - "8080:80"
+    links:
+      - mysql:mysql
+
+  # Elasticsearch Instance
+  elasticsearch:
+    image: elasticsearch:${ELASTICSEARCH_VERSION}
+    volumes: # Persist ES data in seperate "esdata" volume
+      - ${PROJECT_PATH}/docker/volume/elasticsearch/data:/usr/share/elasticsearch/data
+    environment:
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - discovery.type=single-node
+    ports:
+      - "9300:9300"
+      - "9200:9200"
+
+  # Kibana
+  kibana:
+    image: kibana:${KIBANA_VERSION}
+    ports:
+      - "5601:5601"
+    links:
+      - elasticsearch:elasticsearch
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:${RABBITMQ_VERSION}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
