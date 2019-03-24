@@ -1,4 +1,4 @@
 .idea
 .env
-docker/volume/elasticsearch/data/*
-docker/volume/mysql/*
+./docker/volume/elasticsearch/data/*
+./docker/volume/mysql/*
