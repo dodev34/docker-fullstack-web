@@ -8,10 +8,9 @@ services:
 
   # PHP 7.2 Apache
   apache:
-    image: php:${PHP_APACHE_VERSION}
-
     # todo : unstable
-    #build: ./config/apache/build
+    #build: ./docker/config/apache/build
+    image: php:${PHP_APACHE_VERSION}
     ports:
       - "8080:80"
     volumes:
@@ -85,6 +84,8 @@ services:
 
   # RabbitMQ
   rabbitmq:
+    # todo : unstable
+    #build: ./docker/config/rabbitmq/build
     image: rabbitmq:${RABBITMQ_VERSION}
     ports:
       - "5672:5672"
